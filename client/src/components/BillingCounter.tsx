@@ -252,13 +252,15 @@ const BillingCounter: React.FC<BillingCounterProps> = ({
           )}
         </div>
 
-        <div className="tg-hint">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="m22 2-7 20-4-9-9-4 20-7z" />
-            <path d="M22 2 11 13" />
-          </svg>
-          Products added via Telegram bot appear instantly
-        </div>
+        {cartItemIds.length === 0 && (
+          <div className="tg-hint">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="m22 2-7 20-4-9-9-4 20-7z" />
+              <path d="M22 2 11 13" />
+            </svg>
+            Products added via Telegram bot appear instantly
+          </div>
+        )}
 
         <div className="bill-summary">
           <div className="bill-row">

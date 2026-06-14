@@ -1,4 +1,4 @@
-# InvenMan - Smart Business Inventory & Billing Dashboard
+# StockSense - Smart Business Inventory & Billing Dashboard
 
 ## 🎯 Project Overview
 

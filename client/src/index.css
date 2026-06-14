@@ -38,9 +38,16 @@ body {
   font-family: var(--sans);
   font-size: 14px;
   height: 100vh;
+  width: 100vw;
   overflow: hidden;
+}
+
+#root {
   display: flex;
   flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
 }
 
 /* ── TOPBAR ── */
@@ -714,8 +721,10 @@ td.muted { color: var(--text2); font-size: 12px; }
   margin-bottom: 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  overflow: hidden;
 }
+.bill-modal-items::-webkit-scrollbar { width: 4px; }
+.bill-modal-items::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
 .bmi-row {
   display: flex;
   justify-content: space-between;

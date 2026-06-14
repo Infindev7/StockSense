@@ -1,4 +1,4 @@
-# 🚀 InvenMan POS System - Quick Start Guide
+# 🚀 StockSense POS System - Quick Start Guide
 
 ## ✅ System Status
 - **Status:** ✅ Live and Running
