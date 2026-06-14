@@ -1,0 +1,120 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "restock-alert",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "name": "Webhook: POST /restock-alert",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        1680,
+        1648
+      ],
+      "id": "3f4dc4bb-996e-49e9-b3d3-871900403375"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body;\nconst products = body?.needs_restock;\n\nif (!products || !Array.isArray(products) || products.length === 0) {\n  throw new Error('Invalid payload: needs_restock array is missing or empty');\n}\n\n// Build one Telegram message covering all low stock items\nlet message = '\ud83d\udd34 *RESTOCK ALERT*\\n';\nmessage += `_${products.length} product${products.length > 1 ? 's' : ''} need${products.length === 1 ? 's' : ''} restocking_\\n\\n`;\n\nproducts.forEach((p, i) => {\n  message += `*${i + 1}. ${p.name}*\\n`;\n  message += `   \ud83d\udce6 Stock: ${p.quantity} ${p.unit} _(min: ${p.min_threshold})_\\n`;\n  message += `   \ud83d\udcb0 Price: \u20b9${p.price}/${p.unit}\\n\\n`;\n});\n\nmessage += '_Please reorder via the dashboard._';\n\nreturn [{ json: { message, count: products.length } }];"
+      },
+      "name": "Build Alert Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        1648
+      ],
+      "id": "8e3b0b22-5eb8-4cff-be32-059c1681fe96"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $vars.owner_chat_id }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "name": "Send Restock Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        2160,
+        1648
+      ],
+      "id": "2ea0bee7-36dc-4c7a-baa4-899de4df3cdc"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, alerted: $('Build Alert Message').item.json.count }) }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2400,
+        1648
+      ],
+      "id": "d529b52f-0c52-435d-a68c-be4c96f7e4d0"
+    }
+  ],
+  "connections": {
+    "Webhook: POST /restock-alert": {
+      "main": [
+        [
+          {
+            "node": "Build Alert Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Alert Message": {
+      "main": [
+        [
+          {
+            "node": "Send Restock Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Restock Alert": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": ""
+  }
+}

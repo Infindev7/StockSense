@@ -1,0 +1,725 @@
+{
+  "name": "StockSense \u2014 Telegram Vision Ingestion v3",
+  "nodes": [
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "17ef298c-a158-4452-86ea-58f920a7e692",
+              "leftValue": "={{ $('Telegram Trigger1').item.json.message.text }}",
+              "rightValue": "/start",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Is /start Command?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -976,
+        1424
+      ],
+      "id": "c138e14b-6d2d-4e3a-a491-81ebd551cd2b"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.file_id }}",
+        "additionalFields": {}
+      },
+      "name": "Get Telegram File Path",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -304,
+        1456
+      ],
+      "id": "0b1259fa-0291-42a4-b2b8-c8cb0556134a",
+      "notes": "Uses built-in Telegram node to get file_path. Avoids hardcoding the bot token."
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "name": "Telegram Trigger1",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1424,
+        1504
+      ],
+      "id": "0690fa8b-2bcf-42d9-8a41-b447deb3fd34",
+      "onError": "continueErrorOutput",
+      "notes": "Receives all messages. Routes /start to intro, everything else to processing."
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger1').item.json.message.chat.id }}",
+        "text": "\ud83d\udc4b *Welcome to StockSense Inventory Assistant!*\n\nI'm connected to your shop's billing dashboard and database.\n\n\ud83d\uded2 *What I can do:*\n\u2022 *Add New Stock:* Snap a photo of any product, type the quantity (and optionally price) in the caption, and send it. Vision AI will identify the item and update your inventory automatically.\n\u2022 *Low Stock Alerts:* I'll ping you here when items drop below safe threshold at the billing counter.\n\n\ud83d\udcdd *Caption Format:*\n`20` \u2192 adds 20 units (AI guesses price)\n`20 10rs` \u2192 adds 20 units at \u20b910 each\n`15 for 45rs` \u2192 adds 15 units at \u20b945 each\n\nReady? Send a product photo to begin! \ud83d\ude80",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "name": "Send Intro1",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        -752,
+        1328
+      ],
+      "id": "65858fd5-403e-459b-ac97-2bc367d48c00"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger1').item.json.message.chat.id }}",
+        "text": "\ud83d\udd04 Processing your image... Please wait.",
+        "additionalFields": {}
+      },
+      "name": "Send Processing Message1",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        -752,
+        1520
+      ],
+      "id": "1f4fd8f7-dbc0-4cbe-8cc8-daed0bb2ca1c"
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg = $('Telegram Trigger1').first().json.message;\n\n// 1. Guard: check for an attached photo\nif (!msg.photo || msg.photo.length === 0) {\n  throw new Error('No photo attached. Please send a product image with quantity in the caption.');\n}\n\nconst rawCaption = (msg.caption || '').trim();\nif (!rawCaption) {\n  throw new Error('No caption found. Please type the quantity (e.g., \"30\" or \"30 200rs\") in the caption.');\n}\n\n// 2. Clean and standardize the lines into an array\nconst captionLines = rawCaption.split('\\n').map(line => line.trim()).filter(line => line.length > 0);\n\nlet extractedPrice = null;\nlet extractedQuantity = null;\n\n// Helper to check if a line represents a price (contains rs, \u20b9, rupees, or inr)\nconst isPriceString = (str) => /(?:rs|\u20b9|inr|rupees)/i.test(str);\n\n// 3. Process lines safely\nif (captionLines.length === 1) {\n  // Single-line fallback parsing\n  const singleLine = captionLines[0];\n  const priceMatch = singleLine.match(/(?:for\\s*)?(\\d+(?:\\.\\d+)?)\\s*(?:rs|\u20b9|inr|rupees)/i);\n  if (priceMatch) {\n    extractedPrice = parseFloat(priceMatch[1]);\n    // Strip out the price part to find a separate standalone number for quantity\n    const remainingText = singleLine.replace(priceMatch[0], '').trim();\n    const qtyMatch = remainingText.match(/(\\d+)/);\n    if (qtyMatch) extractedQuantity = parseInt(qtyMatch[1], 10);\n  } else {\n    // If no currency marker exists, treat the single line text number as a quantity count\n    const qtyMatch = singleLine.match(/(\\d+)/);\n    if (qtyMatch) extractedQuantity = parseInt(qtyMatch[1], 10);\n  }\n} else {\n  // Multi-line intelligent scanning (handles layouts like \"200rs\\n30\")\n  for (const line of captionLines) {\n    if (isPriceString(line)) {\n      const priceMatch = line.match(/(\\d+(?:\\.\\d+)?)/);\n      if (priceMatch) extractedPrice = parseFloat(priceMatch[1]);\n    } else {\n      const qtyMatch = line.match(/(\\d+)/);\n      if (qtyMatch) extractedQuantity = parseInt(qtyMatch[1], 10);\n    }\n  }\n}\n\n// 4. Default fallbacks if parsing steps came up short\nif (!extractedQuantity) extractedQuantity = 1; \n\nconst photo = msg.photo[msg.photo.length - 1];\n\nreturn [{\n  json: {\n    file_id: photo.file_id,\n    chat_id: msg.chat.id,\n    from_id: msg.from.id,\n    caption: rawCaption,\n    extracted_quantity: extractedQuantity,\n    extracted_price: extractedPrice\n  }\n}];\n"
+      },
+      "name": "Validate & Extract Message1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -528,
+        1520
+      ],
+      "id": "92dcb1d4-819b-44c9-a1de-f81608f855e8",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.telegram.org/file/bot{{ $vars.telegram_api_key }}/{{ $json.result.file_path }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "name": "Download Image Binary1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -80,
+        1456
+      ],
+      "id": "0f06ce4e-cf5d-43a4-a88c-e8d9ad2202f4",
+      "notes": "Downloads actual image bytes as binary data."
+    },
+    {
+      "parameters": {
+        "collection": "products",
+        "options": {
+          "limit": 1
+        },
+        "query": "={{ JSON.stringify({ product_id: $json.product_id }) }}"
+      },
+      "name": "Check If Product Exists1",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [
+        1488,
+        1328
+      ],
+      "id": "b406e2bf-8cf7-44e9-9b8a-321b61b3e380",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json._id ? 1 : 0 }}",
+              "operation": "equal",
+              "value2": 1
+            }
+          ]
+        }
+      },
+      "name": "Product Exists?1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1712,
+        1328
+      ],
+      "id": "fecf9b0d-1f05-4485-a9b7-4291650d4f00"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "collection": "products",
+        "updateKey": "product_id",
+        "fields": "={{ JSON.stringify({\n  current_stock: ($json.current_stock || 0) + $('Parse Vision Response1').item.json.quantity_added,\n  price: $('Parse Vision Response1').item.json.price,\n  updated_at: new Date().toISOString()\n}) }}",
+        "options": {}
+      },
+      "name": "Increment Existing Stock1",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [
+        2160,
+        1232
+      ],
+      "id": "6432ef14-e96d-47d9-ba17-4f81440429df",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "products",
+        "fields": "product_id, name, category, price, unit, quantity, min_threshold",
+        "options": {}
+      },
+      "name": "Insert New Product1",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [
+        2160,
+        1424
+      ],
+      "id": "5026dcc0-b7dc-47dd-aa88-bd6b58090d6d",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "stock_events",
+        "fields": "={{ JSON.stringify({\n  product_id:  $('Parse Vision Response1').item.json.product_id,\n  action:      'restock',\n  qty_delta:   $('Parse Vision Response1').item.json.quantity_added,\n  source:      'telegram_vision',\n  created_at:  new Date().toISOString()\n}) }}",
+        "options": {}
+      },
+      "name": "Log Restock Event1",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [
+        2384,
+        1328
+      ],
+      "id": "cec5ed67-bdc9-4652-8e38-cd6001380e1b"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Validate & Extract Message1').first().json.chat_id }}",
+        "text": "=\u2705 *INVENTORY SYNCED*\n\n\ud83d\udce6 *{{ $('Parse Vision Response1').item.json.name }}*\n\ud83c\udff7 Category: {{ $('Parse Vision Response1').item.json.category }}\n\ud83d\udcb0 Price: \u20b9{{ $('Parse Vision Response1').item.json.price }}/{{ $('Parse Vision Response1').item.json.unit }}\n\ud83d\udce5 Added: +{{ $('Parse Vision Response1').item.json.quantity }} units\n\n_Database updated. Dashboard will reflect this shortly._",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "Markdown"
+        }
+      },
+      "name": "Send Confirmation to Owner1",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        2608,
+        1328
+      ],
+      "id": "414c92b2-e3dd-448c-8d63-e5f583e9ddde"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger1').item.json.message.chat.id }}",
+        "text": "=\u274c *Could not process your image*\n\nPlease try again:\n\u2022 Send a *clear photo* of the product\n\u2022 Add quantity and price only in caption: _`20rs 10`_ or _`20 10rs`_\n\u2022 Make sure the label/packaging is visible\n\u2022 Please wait some time and try again later",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "name": "Send Error Message1",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        1488,
+        1712
+      ],
+      "id": "e98ac739-8263-49f6-b672-17c0c9bfacdd"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst extracted = $('Validate & Extract Message1').first().json;\n\nfor (let item of items) {\n  item.json.raw_caption = extracted.caption;\n  item.json.chat_id = extracted.chat_id;\n}\n\nreturn items;\n"
+      },
+      "name": "Prepare Image for Vision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        1456
+      ],
+      "id": "a74b7ecc-9c7a-455a-ab2b-7b420b076dbb"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $vars.gemini_api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.body }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        592,
+        1456
+      ],
+      "id": "be488fd2-bd8f-426e-b066-a7c120b977b2",
+      "name": "Gemini Vision API",
+      "retryOnFail": true,
+      "maxTries": 5,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const imageData = $input.first();\nconst fileUrl = `https://api.telegram.org/file/bot${$vars.telegram_api_key}/${imageData.json.result.file_path}`;\nconst rawCaption = $('Validate & Extract Message1').first().json.caption || '';\n\nconst body = {\n  contents: [\n    {\n      parts: [\n        {\n          file_data: {\n            mime_type: \"image/jpeg\",\n            file_uri: fileUrl\n          }\n        },\n        {\n          text: `SYSTEM INSTRUCTIONS:\\nYou are a product identification assistant for an Indian retail store (kirana shop). You will analyze a product image and return inventory data.\\n\\nSTRICT OUTPUT RULES:\\n- Return ONLY a raw JSON object\\n- No markdown fences, no backticks, no explanation, no preamble\\n- First character of your response must be { and last must be }\\n\\nFIELD RULES:\\n- name: Full product name with brand + variant + size/weight as printed on packaging.\\n- category: MUST be exactly one of: Grocery, Dairy, Biscuits, Snacks, Instant, Hygiene, Beverages, Stationary, Other\\n- price: Retail price in INR as a plain integer. No \u20b9 symbol. If visible on packaging use that. Otherwise estimate Indian market price.\\n- unit: MUST be exactly one of: kg, L, pkt, btl, pcs, bag, box\\n- quantity: Extract from user caption below. A standalone number means units being added. If no number found, use 1.\\n\\nUSER CAPTION:\\n\"${rawCaption}\"\\n\\nCAPTION PARSING RULES:\\n- Standalone number (\"20\") \u2192 quantity is 20\\n- Number with currency (\"10rs\", \"\u20b910\") \u2192 that is price, not quantity\\n- Both present (\"20\\\\n10rs\") \u2192 quantity is 20, price is 10\\n- If caption gives a price, it ALWAYS overrides your estimate\\n\\nNow return the JSON object:`\n        }\n      ]\n    }\n  ],\n  generationConfig: {\n    temperature: 0.1,\n    maxOutputTokens: 1024,\n    responseMimeType: \"application/json\"\n  }\n};\n\nreturn [{ json: { body: JSON.stringify(body) } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        1456
+      ],
+      "id": "19b4db7a-b4e5-425d-8758-32af3117952a",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputJson = $input.first().json;\n\n// Read from Gemini HTTP response structure\nlet rawText = inputJson?.candidates?.[0]?.content?.parts?.[0]?.text || '';\n\nif (!rawText) {\n  throw new Error('Gemini returned an empty response. Check model name and token limit.');\n}\n\n// Extract JSON object if wrapped in conversational text or markdown\nif (rawText.includes('{')) {\n  rawText = rawText.substring(rawText.indexOf('{'), rawText.lastIndexOf('}') + 1);\n}\n\n// Strip any remaining markdown fences\nconst cleaned = rawText.replace(/```json\\s*/gi, '').replace(/```\\s*/g, '').trim();\n\nlet product;\ntry {\n  product = JSON.parse(cleaned);\n} catch (e) {\n  throw new Error('Invalid JSON from Gemini: ' + cleaned);\n}\n\n// Safe fallback layer\nconst finalName     = product.name     || 'Unknown Product';\nconst finalCategory = product.category || 'Other';\nconst finalPrice    = product.price    != null ? Number(product.price)    : 0;\nconst finalUnit     = product.unit     || 'pcs';\nconst finalQuantity = product.quantity != null ? Number(product.quantity) : 1;\n\n// chat_id and raw_caption are passed forward from the Build Gemini Request code node\nconst finalChatId   = inputJson.chat_id    || 0;\n\nconst product_id = 'p_' + finalName\n  .toLowerCase()\n  .replace(/[^a-z0-9]/g, '_')\n  .replace(/_+/g, '_')\n  .slice(0, 30);\n\nreturn [{\n  json: {\n    product_id,\n    name:           finalName,\n    category:       finalCategory,\n    price:          finalPrice,\n    unit:           finalUnit,\n    quantity: finalQuantity,\n    min_threshold:  10,\n  }\n}];"
+      },
+      "name": "Parse Vision Response1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1264,
+        1424
+      ],
+      "id": "510b154f-1f7e-443c-8a00-69046301a4a4",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $vars.gemini_api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.body }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        816,
+        1520
+      ],
+      "id": "a56b1898-8171-47e5-95c9-e86fbfe05f30",
+      "name": "Gemini Vision API1",
+      "retryOnFail": true,
+      "maxTries": 5,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2-flash:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $vars.gemini_api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.body }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1040,
+        1600
+      ],
+      "id": "d6588f2e-21b1-42fd-a981-4b21a0cf5146",
+      "name": "Gemini Vision API2",
+      "retryOnFail": true,
+      "maxTries": 5,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d7ec0bc3-b8eb-4208-90ad-a4df92df6955",
+              "name": "$vars.chat_ai",
+              "value": "={{ $json.message.chat.id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1200,
+        1424
+      ],
+      "id": "571f8d0b-b286-47e1-bd29-6ffde4c4fcc3",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $('Parse Vision Response1').all()"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1936,
+        1424
+      ],
+      "id": "6c2252a0-c8e1-4adb-af09-8d6dbb651285",
+      "name": "Code in JavaScript"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Is /start Command?": {
+      "main": [
+        [
+          {
+            "node": "Send Intro1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Processing Message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Telegram File Path": {
+      "main": [
+        [
+          {
+            "node": "Download Image Binary1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Trigger1": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Error Message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Processing Message1": {
+      "main": [
+        [
+          {
+            "node": "Validate & Extract Message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate & Extract Message1": {
+      "main": [
+        [
+          {
+            "node": "Get Telegram File Path",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Error Message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Image Binary1": {
+      "main": [
+        [
+          {
+            "node": "Prepare Image for Vision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check If Product Exists1": {
+      "main": [
+        [
+          {
+            "node": "Product Exists?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Product Exists?1": {
+      "main": [
+        [
+          {
+            "node": "Increment Existing Stock1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Increment Existing Stock1": {
+      "main": [
+        [
+          {
+            "node": "Log Restock Event1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert New Product1": {
+      "main": [
+        [
+          {
+            "node": "Log Restock Event1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Restock Event1": {
+      "main": [
+        [
+          {
+            "node": "Send Confirmation to Owner1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Image for Vision": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Gemini Vision API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Vision API": {
+      "main": [
+        [
+          {
+            "node": "Parse Vision Response1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gemini Vision API1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Vision Response1": {
+      "main": [
+        [
+          {
+            "node": "Check If Product Exists1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Error Message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Vision API1": {
+      "main": [
+        [
+          {
+            "node": "Parse Vision Response1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gemini Vision API2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Vision API2": {
+      "main": [
+        [
+          {
+            "node": "Parse Vision Response1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Error Message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Error Message1": {
+      "main": [
+        []
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Is /start Command?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Insert New Product1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e86e228ae875c1effe6eca0c1575e45197aca852d4dba0bb89f30cb4a4602817"
+  },
+  "nodeGroups": [],
+  "tags": []
+}
