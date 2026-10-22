@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import './App.css';
+import { API_BASE_URL } from './config';
 import BillingCounter from './components/BillingCounter';
 import InventoryStatus from './components/InventoryStatus';
 import ActivityLogs from './components/ActivityLogs';
@@ -74,7 +75,7 @@ function App() {
       };
 
       try {
-        const response = await fetchWithTimeout('http://localhost:8000/api/inventory');
+        const response = await fetchWithTimeout(`${API_BASE_URL}/api/inventory`);
         if (response.ok) {
           data = await response.json();
         }

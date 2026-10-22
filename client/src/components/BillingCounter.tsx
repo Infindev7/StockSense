@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import type { Product } from '../App';
+import { API_BASE_URL } from '../config';
 
 interface BillingCounterProps {
   products: Product[];
@@ -108,11 +109,12 @@ const BillingCounter: React.FC<BillingCounterProps> = ({
         }),
       };
       
-      await fetch('http://localhost:8000/api/checkout', {
+      const response = await fetch(`${API_BASE_URL}/api/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
+      const data = await response.json().catch(() => null);
       
       // Update local state
       cartItemIds.forEach((id) => updateProductStock(id, cart[id]));
@@ -121,11 +123,14 @@ const BillingCounter: React.FC<BillingCounterProps> = ({
       setShowBillModal(false);
       setShowSuccessModal(true);
       
-      // Check for low stock items to trigger alerts
-      const low = products.filter(p => p.quantity - (cart[p.id] || 0) < p.min_threshold);
-      if (low.length > 0) {
+      // Check if backend dispatched a restock alert
+      if (data?.alert_fired) {
         setTimeout(() => {
-          showToast(`🔴 ${low.length} product(s) below threshold — n8n alert fired`);
+          showToast(`🔴 Restock alert fired: ${data.low_stock_count} item(s) sent to Telegram`);
+        }, 1000);
+      } else if (data?.has_low_stock && data?.webhook_status) {
+        setTimeout(() => {
+          showToast(`⚠️ n8n webhook error (${data.webhook_status}): check workflow status`);
         }, 1000);
       }
     } catch (e) {

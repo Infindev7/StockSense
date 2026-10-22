@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import type { Product } from '../App';
+import { API_BASE_URL } from '../config';
 
 interface InventoryStatusProps {
   products: Product[];
@@ -272,7 +273,7 @@ const InventoryStatus: React.FC<InventoryStatusProps> = ({ products, switchView,
                 onClick={async () => {
                   if (!restockProductId || !restockQty || Number(restockQty) <= 0) return;
                   try {
-                    await fetch('http://localhost:8000/api/inventory/restock', {
+                    await fetch(`${API_BASE_URL}/api/inventory/restock`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({

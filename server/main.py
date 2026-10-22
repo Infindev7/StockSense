@@ -21,5 +21,9 @@ app.include_router(checkout.router, prefix="/api", tags=["Checkout"])
 async def root():
     return {"status": "ok", "message": "StockSense Backend API is running"}
 
+@app.get("/health")
+async def health():
+    return {"status": "healthy", "service": "StockSense Backend API"}
+
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
