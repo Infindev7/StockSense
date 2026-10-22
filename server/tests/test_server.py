@@ -9,7 +9,7 @@ client = TestClient(app)
 def test_root_endpoint():
     """Verify that root endpoint returns HTTP 200 with online status."""
     response = client.get("/")
-    assert response.status_code == 200
+    assert response.status_code == 200 #This line is supposed to be changed to demonstrate error (Marked by Soham)
     data = response.json()
     assert data["status"] == "ok"
     assert "StockSense Backend API" in data["message"]
