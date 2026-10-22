@@ -1,0 +1,12 @@
+{
+  "name": "stocksense",
+  "version": "1.0.0",
+  "private": true,
+  "description": "StockSense - Smart Inventory Management and POS System",
+  "scripts": {
+    "test": "npm --prefix client test && python -m pytest server",
+    "test:client": "npm --prefix client test",
+    "test:server": "python -m pytest server",
+    "build:client": "npm --prefix client run build"
+  }
+}
