@@ -80,7 +80,7 @@ jobs:
 
       # Set up Docker Buildx for multi-platform & cached builds
       - name: Set up Docker Buildx
-        uses: actions/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v3
 
       # (f) Build Docker Images to prove they build (Runs on every Push and PR)
       - name: f1. Build Server Docker Image
