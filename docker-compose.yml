@@ -64,7 +64,7 @@ services:
     networks:
       - stocksense-network
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost/"]
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1/"]
       interval: 10s
       timeout: 5s
       retries: 5
