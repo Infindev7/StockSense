@@ -149,26 +149,32 @@ jobs:
           tags: ${{ steps.meta-client.outputs.tags }}
           labels: ${{ steps.meta-client.outputs.labels }}
 
-      # (h) Continuous Deployment Trigger
-      - name: h. Trigger Application Deployment
+      # (h1) Continuous Deployment: Backend
+      - name: h1. Deploy Backend Web Service
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         run: |
-          echo "=========================================================="
-          echo "Starting Continuous Deployment Stage..."
-          echo "=========================================================="
-          if [ -n "${{ secrets.DEPLOY_HOOK_URL }}" ]; then
-            echo "Deploy webhook secret detected. Triggering live deployment..."
-            RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.DEPLOY_HOOK_URL }}")
-            echo "Deployment webhook triggered with HTTP response code: $RESPONSE"
-            if [ "$RESPONSE" -ge 200 ] && [ "$RESPONSE" -lt 400 ]; then
-              echo "Deployment trigger succeeded."
-            else
-              echo "WARNING: Deploy webhook returned non-2xx status ($RESPONSE)."
-            fi
+          BACKEND_HOOK="${{ secrets.BACKEND_DEPLOY_HOOK_URL || secrets.DEPLOY_HOOK_URL }}"
+          if [ -n "$BACKEND_HOOK" ]; then
+            echo "Backend deploy hook detected. Triggering backend deployment..."
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BACKEND_HOOK")
+            echo "Backend deployment triggered with HTTP status: $STATUS"
+            [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ] || echo "Warning: Non-2xx response from backend hook."
           else
-            echo "NOTICE: DEPLOY_HOOK_URL secret is not configured in repository."
-            echo "To enable automated live deployments to Render / Railway / Cloud VM:"
-            echo "  1. Create a deploy hook in your cloud host (e.g. Render Deploy Hook URL)."
-            echo "  2. Add it to GitHub Repo Settings -> Secrets and variables -> Actions as 'DEPLOY_HOOK_URL'."
-            echo "Skipping deployment step gracefully without failing the pipeline."
+            echo "NOTICE: Neither BACKEND_DEPLOY_HOOK_URL nor DEPLOY_HOOK_URL is configured."
+            echo "Add your backend deploy hook to GitHub Secrets to automate backend deployments."
+          fi
+
+      # (h2) Continuous Deployment: Frontend
+      - name: h2. Deploy Frontend Web Service
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        run: |
+          FRONTEND_HOOK="${{ secrets.FRONTEND_DEPLOY_HOOK_URL || secrets.DEPLOY_HOOK_URL }}"
+          if [ -n "$FRONTEND_HOOK" ]; then
+            echo "Frontend deploy hook detected. Triggering frontend deployment..."
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$FRONTEND_HOOK")
+            echo "Frontend deployment triggered with HTTP status: $STATUS"
+            [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ] || echo "Warning: Non-2xx response from frontend hook."
+          else
+            echo "NOTICE: Neither FRONTEND_DEPLOY_HOOK_URL nor DEPLOY_HOOK_URL is configured."
+            echo "Add your frontend deploy hook to GitHub Secrets to automate frontend deployments."
           fi
