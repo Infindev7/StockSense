@@ -1,0 +1,11 @@
+node_modules/
+dist/
+dist-ssr/
+*.log
+.git/
+.gitignore
+.env
+.env.*
+README.md
+QUICKSTART.md
+README_POS_SYSTEM.md

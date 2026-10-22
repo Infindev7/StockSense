@@ -1,0 +1,79 @@
+services:
+  # ==========================================
+  # Database Service (MongoDB)
+  # ==========================================
+  mongodb:
+    image: mongo:7.0
+    container_name: stocksense-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - stocksense-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # ==========================================
+  # Backend API Service (FastAPI)
+  # ==========================================
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: stocksense-server
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017
+      - DB_NAME=stocksense_db
+      - N8N_RESTOCK_WEBHOOK_URL=${N8N_RESTOCK_WEBHOOK_URL:-https://your-n8n-instance.cloud/webhook/restock-alert}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - stocksense-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # ==========================================
+  # Frontend Client Service (React + Nginx)
+  # ==========================================
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: stocksense-client
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+      - "5173:80"
+    depends_on:
+      server:
+        condition: service_healthy
+    networks:
+      - stocksense-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+volumes:
+  mongodb_data:
+    driver: local
+
+networks:
+  stocksense-network:
+    driver: bridge
