@@ -13,6 +13,8 @@ RUN npm ci
 
 # Copy source code and build production bundle
 COPY . .
+ARG VITE_API_BASE_URL=http://localhost:8000
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 RUN npm run build
 
 # Stage 2: Minimal runtime image using Nginx Alpine
