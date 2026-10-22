@@ -153,12 +153,17 @@ jobs:
       - name: h1. Deploy Backend Web Service
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         run: |
-          BACKEND_HOOK="${{ secrets.BACKEND_DEPLOY_HOOK_URL || secrets.DEPLOY_HOOK_URL }}"
+          RAW_HOOK="${{ secrets.BACKEND_DEPLOY_HOOK_URL || secrets.DEPLOY_HOOK_URL }}"
+          BACKEND_HOOK=$(echo "$RAW_HOOK" | tr -d '\r\n[:space:]')
           if [ -n "$BACKEND_HOOK" ]; then
             echo "Backend deploy hook detected. Triggering backend deployment..."
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BACKEND_HOOK")
-            echo "Backend deployment triggered with HTTP status: $STATUS"
-            [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ] || echo "Warning: Non-2xx response from backend hook."
+            STATUS=$(curl -s -S -o /dev/null -w "%{http_code}" -X POST "$BACKEND_HOOK" || echo "curl_failed")
+            echo "Backend deployment triggered with status: $STATUS"
+            if [ "$STATUS" = "200" ] || [ "$STATUS" = "201" ] || [ "$STATUS" = "202" ]; then
+              echo "Backend deployment triggered successfully."
+            else
+              echo "NOTICE: Hook responded with status ($STATUS)."
+            fi
           else
             echo "NOTICE: Neither BACKEND_DEPLOY_HOOK_URL nor DEPLOY_HOOK_URL is configured."
             echo "Add your backend deploy hook to GitHub Secrets to automate backend deployments."
@@ -168,12 +173,17 @@ jobs:
       - name: h2. Deploy Frontend Web Service
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         run: |
-          FRONTEND_HOOK="${{ secrets.FRONTEND_DEPLOY_HOOK_URL || secrets.DEPLOY_HOOK_URL }}"
+          RAW_HOOK="${{ secrets.FRONTEND_DEPLOY_HOOK_URL || secrets.DEPLOY_HOOK_URL }}"
+          FRONTEND_HOOK=$(echo "$RAW_HOOK" | tr -d '\r\n[:space:]')
           if [ -n "$FRONTEND_HOOK" ]; then
             echo "Frontend deploy hook detected. Triggering frontend deployment..."
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$FRONTEND_HOOK")
-            echo "Frontend deployment triggered with HTTP status: $STATUS"
-            [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ] || echo "Warning: Non-2xx response from frontend hook."
+            STATUS=$(curl -s -S -o /dev/null -w "%{http_code}" -X POST "$FRONTEND_HOOK" || echo "curl_failed")
+            echo "Frontend deployment triggered with status: $STATUS"
+            if [ "$STATUS" = "200" ] || [ "$STATUS" = "201" ] || [ "$STATUS" = "202" ]; then
+              echo "Frontend deployment triggered successfully."
+            else
+              echo "NOTICE: Hook responded with status ($STATUS)."
+            fi
           else
             echo "NOTICE: Neither FRONTEND_DEPLOY_HOOK_URL nor DEPLOY_HOOK_URL is configured."
             echo "Add your frontend deploy hook to GitHub Secrets to automate frontend deployments."
